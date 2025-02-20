@@ -49,15 +49,23 @@ public class ExcelExport {
 
                 var codePossession = UserStats.allChangesPlusTotal(repo.contributionStats().getAllChangesSorted());
                 var totalCodePossession = codePossession.getLast();
-                addTable(sheet, 13, true, "Final Contributions - Git Blame", List.of("Author", "Lines written", "Percent (%)"),
+                addTable(sheet, 13, true, "Final Contributions - With Comments - Git Blame", List.of("Author", "Lines written", "Percent (%)"),
                         codePossession.stream().map(UserChanges::getAuthor).toList(),
                         codePossession.stream().map(c -> "%d".formatted(c.getAdditions())).toList(),
                         codePossession.stream().map(c -> "%f".formatted(Math.round(((double) c.getAdditions() / totalCodePossession.getAdditions()) * 10000d) / 100d)).toList()
                 );
 
+                addTable(sheet, 17, true, "Final Contributions - No Comments - Git Blame", List.of("Author", "Lines written", "Percent (%)"),
+                        codePossession.stream().map(UserChanges::getAuthor).toList(),
+                        codePossession.stream().map(c -> "%d".formatted(c.getDeletions())).toList(),
+                        codePossession.stream().map(c -> "%f".formatted(Math.round(((double) c.getDeletions() / totalCodePossession.getDeletions()) * 10000d) / 100d)).toList()
+                );
+
                 var fileStats = repo.fileStats().getAllChangesSorted();
-                addTable(sheet, List.of("File", "Total Additions", "Total Deletions"),
+                addTable(sheet, List.of("File", "All Lines", "Lines of Code", "Total Additions", "Total Deletions"),
                         fileStats.stream().map(FileChanges::getFileName).toList(),
+                        fileStats.stream().map(FileChanges::getLineCount).map("%d"::formatted).toList(),
+                        fileStats.stream().map(FileChanges::getLineCountLOC).map("%d"::formatted).toList(),
                         fileStats.stream().map(c -> "%d".formatted(c.getAdditions())).toList(),
                         fileStats.stream().map(c -> "%d".formatted(c.getDeletions())).toList()
                 );
@@ -76,7 +84,7 @@ public class ExcelExport {
     private static void addTable(Sheet sheet,
                                  List<String> columnTitles,
                                  List<String>... columns) {
-        addTable(sheet, 17, false, "Changes per File", columnTitles, columns);
+        addTable(sheet, 21, false, "Changes per File", columnTitles, columns);
     }
 
     @SafeVarargs

@@ -1,6 +1,7 @@
 package net.justonedev;
 
 import net.justonedev.statswrapper.FileStats;
+import net.justonedev.statswrapper.MutableIntegerPair;
 import net.justonedev.statswrapper.RepositoryStats;
 import net.justonedev.statswrapper.UserStats;
 
@@ -15,24 +16,29 @@ public class StatsGetter {
 
     private static final Pattern REGEX_COMMIT_TITLE = Pattern.compile("^commit [\\da-z]+ ([a-zA-Z\\d\\s]+)$");
     private static final Pattern REGEX_CHANGES = Pattern.compile("^(-?\\d+)\\s+(-?\\d+)\\s+([\\da-zA-Z/\\-._()\\[\\]{}=>\\s]+)$");
-    private static final String REGEX_EXCLUDED_FILES = "(package\\.json|pnpm-lock\\.yaml|(\\.(py|xlsx|dot|svg)))$";//     |([/\\](\.(git|next|idea)|node_modules)[/\\])
+    private static final String REGEX_EXCLUDED_FILES = "(package\\.json|pnpm-lock\\.yaml|(\\.(py|xlsx|dot|svg)))$";
 
     private double secondsSince(long nanoTime) {
         return Math.round((System.nanoTime() - nanoTime) / 1000000d) / 1000d;
     }
 
     public RepositoryStats getAllGitStats(String repoPath) {
+        String projectName = new File(repoPath).getName();
+        String prefix = "[%s] ".formatted(projectName);
+        String TIME_FORMAT = prefix + "%s   (%.3f s)%n";
+
+        System.out.println(prefix + "Updating repository for all branches (fetch)...");
+        long time = System.nanoTime();
+        GitCommands.runCommand(repoPath, "git fetch --all");
+        System.out.printf(TIME_FORMAT, "Updated repository for all branches", secondsSince(time));
+
         UserStats userStatsAllBranches = new UserStats();
         UserStats userStatsMainOnly = new UserStats();
         FileStats fileStats = new FileStats();
         UserStats finalCodeContributions = new UserStats();
 
-        String projectName = new File(repoPath).getName();
-        String prefix = "[%s] ".formatted(projectName);
-        String TIME_FORMAT = prefix + "%s   (%.3f s)%n";
-
         System.out.println(prefix + "Fetching for all branches...");
-        long time = System.nanoTime();
+        time = System.nanoTime();
         fillGitStatistics(repoPath, "git log --all --no-merges --numstat --pretty=format:\"commit %H %an\"", userStatsAllBranches, fileStats);
         System.out.printf(TIME_FORMAT, "Finished fetching for all branches", secondsSince(time));
 
@@ -43,7 +49,7 @@ public class StatsGetter {
 
         System.out.println(prefix + "Blaming current codebase...");
         time = System.nanoTime();
-        fillGitBlameStatistics(repoPath, finalCodeContributions);
+        fillGitBlameStatistics(repoPath, finalCodeContributions, fileStats);
         System.out.printf(TIME_FORMAT, "Finished blaming", secondsSince(time));
 
         return new RepositoryStats(projectName, userStatsAllBranches, userStatsMainOnly, finalCodeContributions, fileStats);
@@ -84,11 +90,16 @@ public class StatsGetter {
 
     //region GIT BLAME
 
-    private static final Pattern REGEX_BLAME_AUTHOR = Pattern.compile("^author ([a-zA-Z\\d\\s]+)$");
+    private static final Pattern REGEX_BLAME_LINE = Pattern.compile("^[a-z\\d]+\\s(?:.*\"?\\s)?\\((.+)\\s\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2}:\\d{2}\\s[^)]+\\)\\s?(.*)$");
+    private static final String REGEX_BLAME_COMMENT = "^((//|/?\\*)|$)";
 
-    public void fillGitBlameStatistics(final String repoPath, UserStats userStats) {
+    // Additions: All File Changes, Deletions: File Changes (no comments)
+    public void fillGitBlameStatistics(final String repoPath, UserStats userStats, FileStats fileStats) {
         var files = getAllBlamableFiles(repoPath);
-        files.parallelStream().map((file) -> getBlame(repoPath, file)).forEach(userStats::addAllAdditions);
+        files.parallelStream().map((file) -> getBlame(repoPath, file)).forEach(e -> {
+            userStats.addAllBlames(e.blame);
+            fileStats.addAllBlames(e.file, e.blame);
+        });
     }
 
     private ConcurrentLinkedQueue<String> getAllBlamableFiles(String repoPath) {
@@ -123,21 +134,30 @@ public class StatsGetter {
         return false;
     }
 
-    public Map<String, Integer> getBlame(String repoPath, String filePath) {
+    // Additions mark
+    private StringMapWrapper getBlame(String repoPath, String filePath) {
         //System.out.println("Blaming " + filePath);
-        List<String> allBlocks = GitCommands.runCommand(repoPath, "git blame --line-porcelain \"%s\"".formatted(filePath));
-        Map<String, Integer> lineBlame = new HashMap<>();
-        // These blocks are 1-per-line of code
+        List<String> allBlocks = GitCommands.runCommand(repoPath, "git blame --no-line-porcelain \"%s\"".formatted(filePath));
+        Map<String, MutableIntegerPair> lineBlame = new HashMap<>();
 
-        for (String block : allBlocks) {
-            var matcher = REGEX_BLAME_AUTHOR.matcher(block);
-            if (!matcher.matches()) continue;
-            String author = Config.getAlias(matcher.group(1));
-            lineBlame.put(author, lineBlame.getOrDefault(author, 0) + 1);
+        for (String line : allBlocks) {
+            var matcher = REGEX_BLAME_LINE.matcher(line);
+            if (!matcher.matches()) {
+                continue;
+            }
+            String author = Config.getAlias(matcher.group(1).trim());
+            String code = matcher.group(2).trim();
+            var current = lineBlame.get(author);
+            if (current == null) current = new MutableIntegerPair();
+            current.incrementFirst();
+            if (!code.matches(REGEX_BLAME_COMMENT)) current.incrementSecond();
+            lineBlame.put(author, current);
         }
 
-        return lineBlame;
+        return new StringMapWrapper(new File(filePath).getName(), lineBlame);
     }
+
+    private record StringMapWrapper(String file, Map<String, MutableIntegerPair> blame) { }
 
     //endregion
 

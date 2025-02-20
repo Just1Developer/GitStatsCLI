@@ -47,6 +47,10 @@ public class Main {
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine().trim();
             if (line.isEmpty()) break;
+            if (line.startsWith("~")) {
+                String home = System.getProperty("user.home");
+                line = line.replace("~", home);
+            }
             if (new File(line, ".git").exists()) {
                 repositories.add(line);
                 System.out.println("Added Project: " + new File(line).getName());

@@ -47,6 +47,12 @@ public class UserStats {
         }
     }
 
+    public void addAllBlames(Map<String, MutableIntegerPair> stats) {
+        for (var entry : stats.entrySet()) {
+            addChanges(entry.getKey(), entry.getValue().getFirst(), entry.getValue().getSecond());
+        }
+    }
+
     public Changes getChanges(String file) {
         return new Changes(perUserAdditions.getOrDefault(file, 0), perUserDeletions.getOrDefault(file, 0));
     }
