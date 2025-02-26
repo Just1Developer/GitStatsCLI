@@ -25,6 +25,7 @@ public class StatsGetter {
     }
 
     public RepositoryStats getAllGitStats(String repoPath) {
+        repoPath = repoPath.replace('\\', '/');
         String projectName = new File(repoPath).getName();
         String prefix = "[%s] ".formatted(projectName);
         String TIME_FORMAT = prefix + "%s   (%.3f s)%n";
