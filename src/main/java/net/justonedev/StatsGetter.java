@@ -16,7 +16,7 @@ public class StatsGetter {
 
     private static final Pattern REGEX_COMMIT_TITLE = Pattern.compile("^commit [\\da-z]+ ([a-zA-Z\\d\\s]+)$");
     private static final Pattern REGEX_CHANGES = Pattern.compile("^(-?\\d+)\\s+(-?\\d+)\\s+([\\da-zA-Z/\\-._()\\[\\]{}=>\\s]+)$");
-    private static final String REGEX_EXCLUDED_FILES = "(package\\.json|pnpm-lock\\.yaml|(\\.(py|xlsx|dot|svg)))$";
+    private static final String REGEX_EXCLUDED_FILES = "(package\\.json|p?npm-lock\\.yaml|(\\.(py|xlsx|dot|svg)))$";
 
     private double secondsSince(long nanoTime) {
         return Math.round((System.nanoTime() - nanoTime) / 1000000d) / 1000d;
@@ -36,6 +36,7 @@ public class StatsGetter {
         UserStats userStatsMainOnly = new UserStats();
         FileStats fileStats = new FileStats();
         UserStats finalCodeContributions = new UserStats();
+        UserStats contributionsComments = new UserStats();
 
         System.out.println(prefix + "Fetching for all branches...");
         time = System.nanoTime();
@@ -49,10 +50,10 @@ public class StatsGetter {
 
         System.out.println(prefix + "Blaming current codebase...");
         time = System.nanoTime();
-        fillGitBlameStatistics(repoPath, finalCodeContributions, fileStats);
+        fillGitBlameStatistics(repoPath, finalCodeContributions, contributionsComments, fileStats);
         System.out.printf(TIME_FORMAT, "Finished blaming", secondsSince(time));
 
-        return new RepositoryStats(projectName, userStatsAllBranches, userStatsMainOnly, finalCodeContributions, fileStats);
+        return new RepositoryStats(projectName, userStatsAllBranches, userStatsMainOnly, finalCodeContributions, contributionsComments, fileStats);
     }
 
     public void fillGitStatistics(String repoPath, String command, UserStats userStats) {
@@ -91,13 +92,14 @@ public class StatsGetter {
     //region GIT BLAME
 
     private static final Pattern REGEX_BLAME_LINE = Pattern.compile("^[a-z\\d]+\\s(?:.*\"?\\s)?\\((.+)\\s\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2}:\\d{2}\\s[^)]+\\)\\s?(.*)$");
-    private static final String REGEX_BLAME_COMMENT = "^((//|/?\\*)|$)";
+    private static final String REGEX_BLAME_COMMENT = "^((//|/?\\*.*)|$)";
 
     // Additions: All File Changes, Deletions: File Changes (no comments)
-    public void fillGitBlameStatistics(final String repoPath, UserStats userStats, FileStats fileStats) {
+    public void fillGitBlameStatistics(final String repoPath, UserStats userStats, UserStats userStatsComments, FileStats fileStats) {
         var files = getAllBlamableFiles(repoPath);
         files.parallelStream().map((file) -> getBlame(repoPath, file)).forEach(e -> {
             userStats.addAllBlames(e.blame);
+            userStatsComments.addAllBlames(e.commentBlame);
             fileStats.addAllBlames(e.file, e.blame);
         });
     }
@@ -139,6 +141,7 @@ public class StatsGetter {
         //System.out.println("Blaming " + filePath);
         List<String> allBlocks = GitCommands.runCommand(repoPath, "git blame --no-line-porcelain \"%s\"".formatted(filePath));
         Map<String, MutableIntegerPair> lineBlame = new HashMap<>();
+        Map<String, MutableIntegerPair> commentBlame = new HashMap<>();
 
         for (String line : allBlocks) {
             var matcher = REGEX_BLAME_LINE.matcher(line);
@@ -149,15 +152,20 @@ public class StatsGetter {
             String code = matcher.group(2).trim();
             var current = lineBlame.get(author);
             if (current == null) current = new MutableIntegerPair();
+            var currentComment = commentBlame.get(author);
+            if (currentComment == null) currentComment = new MutableIntegerPair();
             current.incrementFirst();
             if (!code.matches(REGEX_BLAME_COMMENT)) current.incrementSecond();
+            else currentComment.incrementFirst();
+            if (code.trim().isEmpty()) currentComment.incrementSecond();
             lineBlame.put(author, current);
+            commentBlame.put(author, currentComment);
         }
 
-        return new StringMapWrapper(new File(filePath).getName(), lineBlame);
+        return new StringMapWrapper(filePath.replaceAll("^(%s/?)".formatted(repoPath), ""), lineBlame, commentBlame);
     }
 
-    private record StringMapWrapper(String file, Map<String, MutableIntegerPair> blame) { }
+    private record StringMapWrapper(String file, Map<String, MutableIntegerPair> blame, Map<String, MutableIntegerPair> commentBlame) { }
 
     //endregion
 

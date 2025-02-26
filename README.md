@@ -11,7 +11,11 @@ If your `/src/` folder is nested and not at the root or one layer down, you need
 
 ## 2. Running the Program
 
-Running the program is really simple. You start it, and then enter each repositories' filepath that you wish to include in the statistics, one at a time. When you are done, press enter, effectively adding an empty repository.
+Running the program is really simple. You start it, and then enter each repositories' filepath that you wish to include in the statistics. When you are done, press enter, effectively adding an empty repository.
+
+### Repository Path Formatting
+
+The rules have changed a little bit: You can now add **multiple projects in one line**. This also means that if you have a space in your path, you need to put the path in quotes, like `"/Users/my user/some folder/"`
 
 ## 3. Output
 

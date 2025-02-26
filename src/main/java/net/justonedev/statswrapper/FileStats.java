@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static net.justonedev.statswrapper.UserStats.WEIGHT_ADDITIONS;
@@ -60,6 +61,20 @@ public class FileStats {
                         perFileLOC.getOrDefault(entry.getKey(), 0L)))
                 .sorted(((Comparator<FileChanges>) (a, b) -> (int) Math.round((b.getAdditions() * WEIGHT_ADDITIONS + b.getDeletions() * WEIGHT_DELETIONS)
                         - (a.getAdditions() * WEIGHT_ADDITIONS + a.getDeletions() * WEIGHT_DELETIONS))).thenComparing(FileChanges::getFileName))
+                .collect(Collectors.toList());
+    }
+
+    public List<FileChanges> getAllChangesSortedBy(Comparator<FileChanges> comparator) {
+        return getAllChangesSortedBy(comparator, (_) -> true);
+    }
+    public List<FileChanges> getAllChangesSortedBy(Comparator<FileChanges> comparator, Predicate<FileChanges> filter) {
+        return perFileAdditions.entrySet().stream()
+                .map((entry) -> new FileChanges(entry.getKey(), entry.getValue(),
+                        perFileDeletions.getOrDefault(entry.getKey(), 0),
+                        perFileLines.getOrDefault(entry.getKey(), 0L),
+                        perFileLOC.getOrDefault(entry.getKey(), 0L)))
+                .filter(filter)
+                .sorted(comparator.thenComparing(FileChanges::getFileName))
                 .collect(Collectors.toList());
     }
 

@@ -65,6 +65,13 @@ public class UserStats {
                 .collect(Collectors.toList());
     }
 
+    public List<UserChanges> getAllChangesSortedBy(Comparator<UserChanges> comparator) {
+        return perUserAdditions.entrySet().stream()
+                .map((entry) -> new UserChanges(entry.getKey(), entry.getValue(), perUserDeletions.getOrDefault(entry.getKey(), 0), perUserCommits.getOrDefault(entry.getKey(), 0)))
+                .sorted(comparator.thenComparing(UserChanges::getAuthor))
+                .collect(Collectors.toList());
+    }
+
     public List<UserChanges> getAllChangesSortedByCommit() {
         return perUserAdditions.entrySet().stream()
                 .map((entry) -> new UserChanges(entry.getKey(), entry.getValue(), perUserDeletions.getOrDefault(entry.getKey(), 0), perUserCommits.getOrDefault(entry.getKey(), 0)))

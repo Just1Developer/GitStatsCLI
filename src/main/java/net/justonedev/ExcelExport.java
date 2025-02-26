@@ -7,12 +7,15 @@ import net.justonedev.statswrapper.UserStats;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.DefaultIndexedColorMap;
+import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.FileOutputStream;
@@ -61,14 +64,36 @@ public class ExcelExport {
                         codePossession.stream().map(c -> "%f".formatted(Math.round(((double) c.getDeletions() / totalCodePossession.getDeletions()) * 10000d) / 100d)).toList()
                 );
 
-                var fileStats = repo.fileStats().getAllChangesSorted();
-                addTable(sheet, List.of("File", "All Lines", "Lines of Code", "Total Additions", "Total Deletions"),
-                        fileStats.stream().map(FileChanges::getFileName).toList(),
-                        fileStats.stream().map(FileChanges::getLineCount).map("%d"::formatted).toList(),
-                        fileStats.stream().map(FileChanges::getLineCountLOC).map("%d"::formatted).toList(),
-                        fileStats.stream().map(c -> "%d".formatted(c.getAdditions())).toList(),
-                        fileStats.stream().map(c -> "%d".formatted(c.getDeletions())).toList()
+                var commentPossession = UserStats.allChangesPlusTotal(repo.contributionsCommentsStats().getAllChangesSortedBy((a, b) -> b.getAdditions() - a.getAdditions()));
+                final var totalCommentPossessionAdd = codePossession.getLast();
+                addTable(sheet, 21, true, "Comments and Javadoc - Git Blame", List.of("Author", "Lines written", "Percent (%)"),
+                        commentPossession.stream().map(UserChanges::getAuthor).toList(),
+                        commentPossession.stream().map(c -> "%d".formatted(c.getAdditions())).toList(),
+                        commentPossession.stream().map(c -> "%f".formatted(Math.round(((double) c.getAdditions() / totalCommentPossessionAdd.getAdditions()) * 10000d) / 100d)).toList()
                 );
+
+                commentPossession = UserStats.allChangesPlusTotal(repo.contributionsCommentsStats().getAllChangesSortedBy((a, b) -> b.getDeletions() - a.getDeletions()));
+                final var totalCommentPossessionDel = codePossession.getLast();
+                addTable(sheet, 25, true, "Empty Lines - Git Blame", List.of("Author", "Empty Lines written", "Percent (%)"),
+                        commentPossession.stream().map(UserChanges::getAuthor).toList(),
+                        commentPossession.stream().map(c -> "%d".formatted(c.getDeletions())).toList(),
+                        commentPossession.stream().map(c -> "%f".formatted(Math.round(((double) c.getDeletions() / totalCommentPossessionDel.getDeletions()) * 10000d) / 100d)).toList()
+                );
+
+                var fileStatsLines = repo.fileStats().getAllChangesSortedBy((a, b) -> Math.toIntExact(b.getLineCount() - a.getLineCount()), a -> a.getLineCount() > 0);
+                addTable(sheet, 29, "Files by Line Count", List.of("File", "All Lines", "Lines of Code"),
+                        fileStatsLines.stream().map(FileChanges::getFileName).toList(),
+                        fileStatsLines.stream().map(FileChanges::getLineCount).filter(d -> d > 0).map("%d"::formatted).toList(),
+                        fileStatsLines.stream().map(FileChanges::getLineCountLOC).filter(d -> d > 0).map("%d"::formatted).toList()
+                );
+
+                var fileStatsChanges = repo.fileStats().getAllChangesSorted();
+                addTable(sheet, 33, "Changes per File", List.of("File", "Total Additions", "Total Deletions", "Status"),
+                        fileStatsChanges.stream().map(FileChanges::getFileName).toList(),
+                        fileStatsChanges.stream().map(c -> "%d".formatted(c.getAdditions())).toList(),
+                        fileStatsChanges.stream().map(c -> "%d".formatted(c.getDeletions())).toList(),
+                        fileStatsChanges.stream().map(FileChanges::getLineCount).map(d -> d == 0 ? "gone" : "exists").toList()
+                        );
 
             }
             try (FileOutputStream fileOut = new FileOutputStream(fileName + (fileName.endsWith(".xlsx") ? "" : ".xlsx"))) {
@@ -82,9 +107,11 @@ public class ExcelExport {
 
     @SafeVarargs
     private static void addTable(Sheet sheet,
+                                 int position,
+                                 String title,
                                  List<String> columnTitles,
                                  List<String>... columns) {
-        addTable(sheet, 21, false, "Changes per File", columnTitles, columns);
+        addTable(sheet, position, false, title, columnTitles, columns);
     }
 
     @SafeVarargs
@@ -121,6 +148,18 @@ public class ExcelExport {
 
         CellStyle boldStyle = workbook.createCellStyle();
         boldStyle.setFont(headerFont);
+
+        CellStyle goneStyle = workbook.createCellStyle();
+        goneStyle.setAlignment(HorizontalAlignment.RIGHT);
+        XSSFColor redColor = new XSSFColor(new java.awt.Color(0xF14646), new DefaultIndexedColorMap());
+        goneStyle.setFillForegroundColor(redColor); // Hex: #E63030, red
+        goneStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        CellStyle existsStyle = workbook.createCellStyle();
+        existsStyle.setAlignment(HorizontalAlignment.RIGHT);
+        XSSFColor greenColor = new XSSFColor(new java.awt.Color(0x5CF345), new DefaultIndexedColorMap());
+        existsStyle.setFillForegroundColor(greenColor); // Hex: #3BD424, green
+        existsStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
         CellStyle titleStyle = workbook.createCellStyle();
         Font titleFont = workbook.createFont();
@@ -175,6 +214,11 @@ public class ExcelExport {
                     // Otherwise, store as text
                     cell.setCellValue(cellValue);
                     if (bold) cell.setCellStyle(boldStyle);
+                    else if (cellValue.equals("gone")) {
+                        cell.setCellStyle(goneStyle);
+                    } else if (cellValue.equals("exists")) {
+                        cell.setCellStyle(existsStyle);
+                    }
                 }
             }
         }

@@ -4,8 +4,10 @@ import net.justonedev.statswrapper.RepositoryStats;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Main {
@@ -39,26 +41,71 @@ public class Main {
         System.out.printf("Done! Exported Git Stats to %s.xlsx%n", filename);
     }
 
-    private static final String SEND_MESSAGE = "Enter Project Path (leave empty to generate stats):";
+    private static final String SEND_MESSAGE = "Enter one or more project paths (leave empty to generate stats):";
     public static ConcurrentLinkedQueue<String> readInput() {
         ConcurrentLinkedQueue<String> repositories = new ConcurrentLinkedQueue<>();
+        Set<String> usedDirs = new HashSet<>();
         Scanner scanner = new Scanner(System.in);
         System.out.println(SEND_MESSAGE);
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine().trim();
             if (line.isEmpty()) break;
-            if (line.startsWith("~")) {
-                String home = System.getProperty("user.home");
-                line = line.replace("~", home);
+
+            for (String dir : parseDirectories(line)) {
+                dir = dir.trim();
+                if (dir.isEmpty()) continue;
+                if (dir.startsWith("~")) {
+                    String home = System.getProperty("user.home");
+                    dir = dir.replace("~", home);
+                }
+                if (!usedDirs.add(dir)) {
+                    System.out.printf("Project \"%s\" is already registered, skipping...%n", dir);
+                    continue;
+                }
+                File f = new File(dir);
+                if (new File(f, ".git").exists()) {
+                    repositories.add(dir);
+                    System.out.println("Added Project: " + f.getName());
+                } else System.out.printf("Folder \"%s\" does not have a Git Repository. Please try again.%n", dir);
             }
-            if (new File(line, ".git").exists()) {
-                repositories.add(line);
-                System.out.println("Added Project: " + new File(line).getName());
-                System.out.println(SEND_MESSAGE);
-                continue;
-            }
-            System.out.println("Folder does not have a Git Repository. Please try again.");
+            System.out.println(SEND_MESSAGE);
         }
         return repositories;
+    }
+
+    private static List<String> parseDirectories(String path) {
+        if (path.isEmpty()) return new ArrayList<>();
+        List<String> directories = new ArrayList<>();
+        char currentDelimiter = 0;
+        boolean inDirectory = false;
+        StringBuilder builder = new StringBuilder();
+        for (char c : path.toCharArray()) {
+            if (!inDirectory) {
+                if (("" + c).matches("\\s")) continue;
+                if (c == '"') {
+                    currentDelimiter = '"';
+                } else {
+                    currentDelimiter = ' ';
+                    builder.append(c);
+                }
+                inDirectory = true;
+                continue;
+            }
+            if (c == currentDelimiter) {
+                inDirectory = false;
+                directories.add(builder.toString());
+                builder = new StringBuilder();
+                continue;
+            }
+            builder.append(c);
+        }
+        if (!builder.isEmpty()) {
+            if (currentDelimiter == '"') {
+                System.out.printf("Warning: Ignoring unclosed directory String \"%s\"%n", builder);
+            } else {
+                directories.add(builder.toString());
+            }
+        }
+        return directories;
     }
 }
