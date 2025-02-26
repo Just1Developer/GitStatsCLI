@@ -171,7 +171,7 @@ public class StatsGetter {
             commentBlame.put(author, currentComment);
         }
 
-        return new StringMapWrapper(filePath.replaceAll("^(%s/?)".formatted(repoPath), ""), lineBlame, commentBlame);
+        return new StringMapWrapper(filePath.replace('\\', '/').replaceAll("^(%s/?)".formatted(repoPath), ""), lineBlame, commentBlame);
     }
 
     private record StringMapWrapper(String file, Map<String, MutableIntegerPair> blame, Map<String, MutableIntegerPair> commentBlame) { }
