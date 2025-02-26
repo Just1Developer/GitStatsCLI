@@ -7,14 +7,16 @@ import net.justonedev.statswrapper.UserStats;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Pattern;
 
 public class StatsGetter {
 
-    private static final Pattern REGEX_COMMIT_TITLE = Pattern.compile("^commit [\\da-z]+ ([a-zA-Z\\d\\s]+)$");
+    private static final Pattern REGEX_COMMIT_TITLE = Pattern.compile("^commit ([\\da-z]+) ([a-zA-Z\\d\\s]+)$");
     private static final Pattern REGEX_CHANGES = Pattern.compile("^(-?\\d+)\\s+(-?\\d+)\\s+([\\da-zA-Z/\\-._()\\[\\]{}=>\\s]+)$");
     private static final String REGEX_EXCLUDED_FILES = "(package\\.json|p?npm-lock\\.yaml|(\\.(py|xlsx|dot|svg)))$";
 
@@ -64,17 +66,24 @@ public class StatsGetter {
         List<String> allStats = GitCommands.runCommand(repoPath, command);
         String currentAuthor = null;
         int currentAdditions = 0, currentDeletions = 0;
+        Set<String> commits = new HashSet<>();
 
         for (String stat : allStats) {
             var matcher = REGEX_COMMIT_TITLE.matcher(stat);
             if (matcher.matches()) {
+                String commit = matcher.group(1);
+                if (!commits.add(commit)) {
+                    // Skip commit as we already know it
+                    currentAuthor = null;
+                    continue;
+                }
                 if (currentAuthor != null) userStats.addChanges(currentAuthor, currentAdditions, currentDeletions);
-                currentAuthor = Config.getAlias(matcher.group(1));
+                currentAuthor = Config.getAlias(matcher.group(2));
                 currentAdditions = 0;
                 currentDeletions = 0;
                 userStats.addCommit(currentAuthor);
                 continue;
-            }
+            } else if (currentAuthor == null) continue;
 
             matcher = REGEX_CHANGES.matcher(stat);
             if (!matcher.matches()) continue;

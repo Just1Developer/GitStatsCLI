@@ -32,6 +32,7 @@ public class FileStats {
     public void addAllChanges(FileStats stats) {
         for (var entry : stats.perFileAdditions.entrySet()) {
             addChanges(entry.getKey(), entry.getValue(), stats.perFileDeletions.get(entry.getKey()));
+            incrementLines(entry.getKey(), getValue(stats.perFileLines.get(entry.getKey())), getValue(stats.perFileLOC.get(entry.getKey())));
         }
     }
 
@@ -96,8 +97,14 @@ public class FileStats {
     public static FileStats withProjectName(FileStats stats, String projectName) {
         var newStats = new FileStats();
         for (var entry : stats.perFileAdditions.entrySet()) {
-            newStats.addChanges("%s/%s".formatted(projectName, entry.getKey()), entry.getValue(), stats.perFileDeletions.get(entry.getKey()));
+            String newKey = "%s/%s".formatted(projectName, entry.getKey());
+            newStats.addChanges(newKey, entry.getValue(), stats.perFileDeletions.get(entry.getKey()));
+            newStats.incrementLines(newKey, getValue(stats.perFileLines.get(entry.getKey())), getValue(stats.perFileLOC.get(entry.getKey())));
         }
         return newStats;
+    }
+
+    private static long getValue(Long key) {
+        return key == null ? 0 : key;
     }
 }
