@@ -58,10 +58,11 @@ public class ExcelExport {
                         codePossession.stream().map(c -> "%f".formatted(Math.round(((double) c.getAdditions() / totalCodePossession.getAdditions()) * 10000d) / 100d)).toList()
                 );
 
+                var codePossessionNoComments = UserStats.allChangesPlusTotal(repo.contributionStats().getAllChangesSortedBy((a, b) -> b.getDeletions() - a.getDeletions()));
                 addTable(sheet, 17, true, "Final Contributions - No Comments - Git Blame", List.of("Author", "Lines written", "Percent (%)"),
-                        codePossession.stream().map(UserChanges::getAuthor).toList(),
-                        codePossession.stream().map(c -> "%d".formatted(c.getDeletions())).toList(),
-                        codePossession.stream().map(c -> "%f".formatted(Math.round(((double) c.getDeletions() / totalCodePossession.getDeletions()) * 10000d) / 100d)).toList()
+                        codePossessionNoComments.stream().map(UserChanges::getAuthor).toList(),
+                        codePossessionNoComments.stream().map(c -> "%d".formatted(c.getDeletions())).toList(),
+                        codePossessionNoComments.stream().map(c -> "%f".formatted(Math.round(((double) c.getDeletions() / totalCodePossession.getDeletions()) * 10000d) / 100d)).toList()
                 );
 
                 var commentPossession = UserStats.allChangesPlusTotal(repo.contributionsCommentsStats().getAllChangesSortedBy((a, b) -> b.getAdditions() - a.getAdditions()));
