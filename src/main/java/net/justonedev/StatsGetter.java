@@ -78,11 +78,13 @@ public class StatsGetter {
                     currentAuthor = null;
                     continue;
                 }
-                if (currentAuthor != null) userStats.addChanges(currentAuthor, currentAdditions, currentDeletions);
+                if (currentAuthor != null) {
+                    userStats.addChanges(currentAuthor, currentAdditions, currentDeletions);
+                    userStats.addCommit(currentAuthor);
+                }
                 currentAuthor = Config.getAlias(matcher.group(2));
                 currentAdditions = 0;
                 currentDeletions = 0;
-                userStats.addCommit(currentAuthor);
                 continue;
             } else if (currentAuthor == null) continue;
 
@@ -96,7 +98,10 @@ public class StatsGetter {
             currentDeletions += del;
             if (fileStats != null) fileStats.addChanges(file, add, del);
         }
-
+        if (currentAuthor != null) {
+            userStats.addChanges(currentAuthor, currentAdditions, currentDeletions);
+            userStats.addCommit(currentAuthor);
+        }
     }
 
     //region GIT BLAME

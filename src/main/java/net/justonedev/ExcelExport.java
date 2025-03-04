@@ -94,7 +94,7 @@ public class ExcelExport {
                         fileStatsChanges.stream().map(c -> "%d".formatted(c.getAdditions())).toList(),
                         fileStatsChanges.stream().map(c -> "%d".formatted(c.getDeletions())).toList(),
                         fileStatsChanges.stream().map(FileChanges::getLineCount).map(d -> d == 0 ? "gone" : "exists").toList()
-                        );
+                );
 
             }
             try (FileOutputStream fileOut = new FileOutputStream(fileName + (fileName.endsWith(".xlsx") ? "" : ".xlsx"))) {
