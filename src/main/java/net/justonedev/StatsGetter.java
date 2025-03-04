@@ -18,7 +18,7 @@ public class StatsGetter {
 
     private static final Pattern REGEX_COMMIT_TITLE = Pattern.compile("^commit ([\\da-z]+) ([a-zA-Z\\d\\s]+)$");
     private static final Pattern REGEX_CHANGES = Pattern.compile("^(-?\\d+)\\s+(-?\\d+)\\s+([\\da-zA-Z/\\-._()\\[\\]{}=>\\s]+)$");
-    private static final String REGEX_EXCLUDED_FILES = "(package\\.json|p?npm-lock\\.yaml|(\\.(py|xlsx|dot|svg)))$";
+    private static final String REGEX_EXCLUDED_FILES = ".*/?(package(-lock)?\\.json|p?npm-lock\\.yaml|(\\.(py|xlsx|dot|svg)))$";
 
     private double secondsSince(long nanoTime) {
         return Math.round((System.nanoTime() - nanoTime) / 1000000d) / 1000d;
